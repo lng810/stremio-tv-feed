@@ -1,0 +1,50 @@
+name: Update Stremio Links
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Runs automatically every 6 hours
+  workflow_dispatch:        # Allows manual trigger at any time
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Latest Stremio Android TV Info
+        run: |
+          mkdir public
+          DATA=$(curl -s "https://api.strem.io/downloads/config")
+          VER=$(echo "$DATA" | jq -r '.entries[] | select(.id=="android_tv") | .value.versionName')
+          CODE=$(echo "$DATA" | jq -r '.entries[] | select(.id=="android_tv") | .value.versionCode.arm')
+          URL="https://dl.strem.io/android/v${VER}-androidTV/com.stremio.one-${VER}-${CODE}-armeabi-v7a.apk"
+          
+          cat <<EOF > public/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>Stremio TV Feed</title>
+          </head>
+          <body>
+            <h1>Stremio Android TV Releases</h1>
+            <p>Latest Version: ${VER}</p>
+            <p><a href="${URL}">Stremio ${VER} ARM APK</a></p>
+          </body>
+          </html>
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './public'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
