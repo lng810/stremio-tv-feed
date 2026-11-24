@@ -2,26 +2,30 @@ name: Update Stremio Links
 
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Runs automatically every 6 hours
-  workflow_dispatch:        # Allows manual trigger at any time
+    - cron: '17 */6 * * *' # Off-peak minute every 6 hours
+  workflow_dispatch:       # Allows manual trigger at any time
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch Latest Stremio Android TV Info
         run: |
-          mkdir public
-          DATA=$(curl -s "https://api.strem.io/downloads/config")
+          mkdir -p public
+          DATA=$(curl -fsSL "https://api.strem.io/downloads/config")
           VER=$(echo "$DATA" | jq -r '.entries[] | select(.id=="android_tv") | .value.versionName')
           CODE=$(echo "$DATA" | jq -r '.entries[] | select(.id=="android_tv") | .value.versionCode.arm')
           URL="https://dl.strem.io/android/v${VER}-androidTV/com.stremio.one-${VER}-${CODE}-armeabi-v7a.apk"
-          
+
           cat <<EOF > public/index.html
           <!DOCTYPE html>
           <html lang="en">
@@ -38,13 +42,23 @@ jobs:
           EOF
 
       - name: Setup Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@v3
         with:
           path: './public'
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Wait for artifact indexing
+        run: sleep 5
+
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@v4
